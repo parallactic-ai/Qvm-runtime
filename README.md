@@ -1,5 +1,9 @@
 # qvm · Quantum Runtime
 
+[![tests](https://github.com/parallactic-ai/Qvm-runtime/actions/workflows/tests.yml/badge.svg)](https://github.com/parallactic-ai/Qvm-runtime/actions/workflows/tests.yml)
+[![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 ```text
 ┌──────────────────────────────────────────────────────────────┐
 │                     qvm  ·  Quantum Runtime                  │
