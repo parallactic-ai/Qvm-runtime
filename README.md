@@ -1,15 +1,20 @@
-# qvm-runtime
+# qvm · Quantum Runtime
 
-```
-   qvm · quantum runtime
-   ─────────────────────
-
-   ┌───┐     ┌─────┐
-   |0⟩ ─│ H │──●──│ run │── ⟨Z⟩
-        └───┘  │   └─────┘
-   |0⟩ ────────X─────────── |ψ⟩ = (|00⟩+|11⟩) / √2
-
-   run · sample · state · grad
+```text
+┌──────────────────────────────────────────────────────────────┐
+│                     qvm  ·  Quantum Runtime                  │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│           ┌─────┐                                            │
+│      |0⟩ ─┤  H  ├────●────┐                                  │
+│           └─────┘    │    │      ┌────────────┐              │
+│                      │    │─────▶│            │───  ⟨Z⟩      │
+│           ┌─────┐    │    │      │    run     │              │
+│      |0⟩ ─┤     ├────X────┘      │            │───  |ψ⟩      │
+│           └─────┘                └────────────┘              │
+│                                                              │
+│      Methods:   run   ·   sample   ·   state   ·   grad      │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 > A clean, beginner-friendly **Quantum Runtime** built on top of PennyLane — for people who want to run quantum circuits without drowning in boilerplate.
