@@ -1,5 +1,17 @@
 # qvm-runtime
 
+```
+   qvm · quantum runtime
+   ─────────────────────
+
+   ┌───┐     ┌─────┐
+   |0⟩ ─│ H │──●──│ run │── ⟨Z⟩
+        └───┘  │   └─────┘
+   |0⟩ ────────X─────────── |ψ⟩ = (|00⟩+|11⟩) / √2
+
+   run · sample · state · grad
+```
+
 > A clean, beginner-friendly **Quantum Runtime** built on top of PennyLane — for people who want to run quantum circuits without drowning in boilerplate.
 
 `qvm-runtime` wraps PennyLane in a small, well-typed surface that makes it natural to write hybrid quantum-classical programs and take gradients through them.
