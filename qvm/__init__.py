@@ -1,5 +1,6 @@
 """Public package interface for QVM."""
 
+from .bloch import bloch
 from .decorators import grad, hybrid
 from .exceptions import (
     BackendError,
@@ -26,6 +27,7 @@ __all__ = [
     "Momentum",
     "Adam",
     "minimize",
+    "bloch",
     "QVMError",
     "BackendError",
     "CircuitError",

@@ -253,6 +253,25 @@ app.grad_at(params)    # gradient at a point
 
 A live demo with a cost-trajectory bar chart lives in `examples/vqa_demo.py`.
 
+### Parameter sweeps
+
+`run_batch` runs a circuit on many parameter vectors at once and stacks the results into one NumPy array. No Python loop, no shape juggling:
+
+```python
+import numpy as np
+
+@qvm.circuit
+def cost(params):
+    qml.RX(params[0], wires=0)
+    return qml.expval(qml.PauliZ(0))
+
+thetas = np.linspace(0, 2 * np.pi, 32).reshape(-1, 1)
+values = qvm.run_batch(cost, thetas)
+print(values.shape)   # (32,)
+```
+
+Vector measurements stack along a new leading axis — `qml.probs(...)` of width `m` over `N` parameter sets gives shape `(N, m)`. Useful for hyperparameter searches, training data over a cost surface, or just plotting `f(θ)`. A full ASCII visualisation of the resulting cosine wave lives in `examples/parameter_sweep.py`.
+
 ### Choosing an optimizer
 
 By default `Qapp` uses plain SGD. Two stronger options ship out of the box — instantiate one and pass it to `Qapp(..., optimizer=...)`:
@@ -336,6 +355,57 @@ print(qvm.draw(bell))
 
 A complete walkthrough — diagram, state vector, samples, marginals — lives in `examples/bell_state.py`. It's the smallest example that shows real entanglement.
 
+### Step-by-step traces
+
+`qvm.trace(circuit, params)` returns the wavefunction after every gate in the circuit — useful for tutorials, debugging, and notebook explanations:
+
+```python
+@qvm.circuit
+def bell():
+    qml.Hadamard(wires=0)
+    qml.CNOT(wires=[0, 1])
+    return qml.state()
+
+for label, state in qvm.trace(bell):
+    print(label, abs(state))
+# 0: init      [1. 0. 0. 0.]
+# 1: H(0)      [0.707 0.    0.707 0.   ]
+# 2: CNOT(0,1) [0.707 0.    0.    0.707]
+```
+
+The first entry is always the initial `|0…0⟩` state. Labels are formatted as `i: GateName(params, wires)` so they stay readable in deep circuits. `examples/trace_demo.py` walks through a Bell state with a plain-English explanation at each step.
+
+### Bloch-sphere visualization
+
+`qvm.bloch(state, wire=0)` renders a single-qubit state on a Bloch sphere — directly for 2-amplitude states, or via partial trace on the requested wire for multi-qubit states:
+
+```python
+from qvm import bloch
+import numpy as np
+
+print(bloch(np.array([1 / np.sqrt(2), 1 / np.sqrt(2)], dtype=complex)))
+```
+
+```text
+          │
+      ·········
+   ····   │    ···
+  ··      │      ··
+ ··       │       ··
+─·────────┼────────●─
+ ··       │       ··
+  ··      │      ··
+   ···    │    ···
+      ·········
+          │
+
+  Bloch vector  (x, y, z) = (+1.0000, -0.0000, +0.0000)
+  Spherical     (θ, φ)    = ( 90.00°,   -0.00°)
+  Magnitude     |r|       = 1.0000   (pure-state qubit)
+```
+
+Combined with `trace()` this becomes the most useful learning tool in the library — `examples/bloch_demo.py` walks through a Bell circuit and you can literally **watch the Bloch vector collapse to the origin** as entanglement forms. The magnitude `|r|` drops from `1.0` (pure) to `0.0` (maximally mixed) at the moment CNOT entangles the qubits, which is entanglement as raw geometry.
+
 ---
 
 ## Advanced
@@ -402,19 +472,19 @@ All of these chain the original exception via `__cause__`, so the underlying Pen
 
 **Phase 1 — complete.** Minimal viable runtime:
 
-- `run`, `sample`, `state` for the common measurement types
+- `run`, `run_batch`, `sample`, `state` for the common measurement types
 - `@circuit` and `@hybrid` decorators (instance and module-level)
 - Analytic gradients via `grad()` and `make_qnode(analytic=True)`
 - `Qapp` abstraction with `fit` / `evaluate` / `grad_at` and a full `OptimizationResult`
 - Pluggable optimizers: `SGD`, `Momentum`, `Adam` (write your own by subclassing `Optimizer`)
-- `draw()` for ASCII circuit diagrams
+- `draw()` for ASCII circuit diagrams; `trace()` for gate-by-gate statevector snapshots; `bloch()` for single-qubit Bloch-sphere rendering (with partial-trace support for multi-qubit states)
 - `qvm` CLI with `info`, `version`, `demo bell`, `demo vqa`
-- Five runnable examples: basic, gradient, Bell state, VQA demo, optimizers compared
-- 40-test pytest suite covering runtime + Qapp + optimizers + CLI
+- Eight runnable examples: basic, gradient, Bell state, VQA demo, optimizers compared, parameter sweep, trace demo, bloch demo
+- 71-test pytest suite covering runtime + Qapp + optimizers + CLI + bloch
 
 ### Honest limitations
 
-- **No automatic batching.** One execution per `run()` call. Parameter sweeps need a Python loop.
+- **Batching is sequential under the hood.** `run_batch` works on any backend but loops in Python; native PennyLane broadcasting is a Phase 2 perf optimization.
 - **No GPU or distributed dispatch.** Whatever PennyLane device you pick is what you get.
 - **No shared wire registers.** Each circuit infers wires independently — there's no `Qubit` / `Register` abstraction yet.
 - **No mid-circuit measurement helpers.** Use raw PennyLane primitives inside the circuit for that.
@@ -423,11 +493,10 @@ All of these chain the original exception via `__cause__`, so the underlying Pen
 
 ### Phase 2 (sketched, not committed)
 
-- A scipy-minimize bridge — let users plug in any classical optimizer.
-- Built-in batching and parameter sweeps.
-- More CLI subcommands — saved-experiment replay, history, parameter sweeps.
+- Native broadcasting in `run_batch` for backends that support it (perf).
+- More CLI subcommands — saved-experiment replay, history, sweep launchers.
 - Pluggable schedulers for parallel hybrid workflows.
-- Richer educational tooling — step traces, Bloch-sphere visualizations.
+- Animated traces (terminal recordings) and Bloch trajectories.
 
 ---
 
@@ -449,6 +518,8 @@ qvm/
   runtime.py         # QuantumRuntime class
   qapp.py            # Qapp + OptimizationResult
   optimizers.py      # Optimizer base + SGD / Momentum / Adam
+  optimize.py        # scipy.minimize bridge
+  bloch.py           # Bloch-sphere math + ASCII renderer (partial trace)
   cli.py             # `qvm` command-line interface (Typer)
   decorators.py      # module-level hybrid, grad
   exceptions.py      # QVMError hierarchy
@@ -458,10 +529,15 @@ examples/
   bell_state.py              # entanglement walkthrough
   vqa_demo.py                # the Qapp story in 10 lines
   optimizers_compared.py     # SGD vs Momentum vs Adam on the same cost
+  parameter_sweep.py         # run_batch over θ ∈ [0, 2π], cosine wave in ASCII
+  trace_demo.py              # trace() walking through a Bell state with commentary
+  bloch_demo.py              # trace() + bloch() — entanglement collapsing the sphere
 tests/
   test_runtime.py
   test_qapp.py
   test_optimizers.py
+  test_optimize.py
+  test_bloch.py
   test_cli.py
 ```
 

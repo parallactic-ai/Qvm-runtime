@@ -18,6 +18,25 @@ ParamLike = Union[Sequence[float], np.ndarray]
 RunResult = Union[float, np.ndarray, tuple]
 
 
+# Short labels for common gates — keeps trace output readable.
+_GATE_SHORT_NAMES = {
+    "Hadamard": "H",
+    "PauliX": "X",
+    "PauliY": "Y",
+    "PauliZ": "Z",
+}
+
+
+def _format_op(op: Any) -> str:
+    """Render a PennyLane operation as ``Gate(params, wires)`` for trace labels."""
+    name = _GATE_SHORT_NAMES.get(op.name, op.name)
+    wires = ",".join(str(w) for w in op.wires)
+    if op.parameters:
+        param_str = ",".join(f"{float(p):.3f}" for p in op.parameters)
+        return f"{name}({param_str}, {wires})"
+    return f"{name}({wires})"
+
+
 class QuantumRuntime:
     """Minimal Viable Quantum Runtime for Phase 1.
 
@@ -163,6 +182,46 @@ class QuantumRuntime:
                 f"Execution failed for '{circuit_fn.__name__}': {e}"
             ) from e
 
+    def run_batch(
+        self,
+        circuit_fn: Callable,
+        params_batch: Union[Sequence[Sequence[float]], np.ndarray],
+        shots: Optional[int] = None,
+    ) -> np.ndarray:
+        """Run a circuit over a batch of parameter vectors.
+
+        Useful for parameter sweeps, hyperparameter searches, and vectorized
+        loss surfaces — anywhere you'd otherwise write a Python loop calling
+        :meth:`run` repeatedly.
+
+        Args:
+            circuit_fn: A function decorated with ``@qvm.circuit``.
+            params_batch: Array-like of shape ``(N, k)`` where ``N`` is the
+                batch size and ``k`` is the per-call parameter count.
+            shots: Optional per-call shots override applied uniformly.
+
+        Returns:
+            A NumPy ``ndarray`` of stacked results — shape ``(N,)`` for scalar
+            measurements, ``(N, m)`` for ``m``-dimensional measurements.
+        """
+        if not getattr(circuit_fn, "_is_qvm_circuit", False):
+            raise CircuitError("Function must be decorated with @qvm.circuit")
+
+        arr = np.asarray(params_batch, dtype=float)
+        if arr.ndim != 2:
+            raise CircuitError(
+                f"params_batch must be a 2D array of shape (N, num_params); "
+                f"got shape {arr.shape}"
+            )
+        if arr.shape[0] == 0:
+            raise CircuitError("params_batch must contain at least one parameter set")
+
+        # Phase 1.5: explicit Python loop. Robust on every backend, predictable
+        # output shape, no broadcasting edge cases. Native PennyLane broadcasting
+        # is a Phase 2 optimization to add when profiling shows it matters.
+        results = [self.run(circuit_fn, params=arr[i], shots=shots) for i in range(arr.shape[0])]
+        return np.asarray(results)
+
     def sample(
         self,
         circuit_fn: Callable,
@@ -226,6 +285,85 @@ class QuantumRuntime:
     # =====================
     # Inspection
     # =====================
+
+    def trace(
+        self,
+        circuit_fn: Callable,
+        params: Optional[ParamLike] = None,
+    ) -> list[tuple[str, np.ndarray]]:
+        """Walk a circuit gate by gate, returning the state after each step.
+
+        This is the educational view of a quantum program: every entry in the
+        returned list is ``(gate_label, state)`` showing the wavefunction
+        immediately after applying that gate, with the initial ``|0…0⟩`` state
+        as the first entry. Useful for teaching, debugging, and notebook
+        explanations.
+
+        Args:
+            circuit_fn: A function decorated with ``@qvm.circuit``. The
+                circuit's returned measurement is ignored — ``trace`` always
+                captures the full statevector.
+            params: Optional parameter vector forwarded to the circuit.
+
+        Returns:
+            A list of ``(label, statevector)`` pairs. Labels are formatted as
+            ``"i: GateName(args, wires)"``; the first entry is ``"0: init"``.
+            Statevectors are NumPy arrays of length ``2**n_wires``.
+        """
+        if not getattr(circuit_fn, "_is_qvm_circuit", False):
+            raise CircuitError("Function must be decorated with @qvm.circuit")
+
+        try:
+            # 1. Materialize the user's circuit as a PennyLane tape so we can
+            #    enumerate its operations.
+            qnode = self._create_qnode(circuit_fn, shots=None)
+            tape_builder = qml.workflow.construct_tape(qnode)
+            tape = (
+                tape_builder()
+                if params is None
+                else tape_builder(np.asarray(params, dtype=float))
+            )
+
+            # 2. Size a fresh device so every snapshot returns the full-width
+            #    state vector (avoids the auto-resize that hides untouched wires).
+            wires_used: set[int] = set()
+            for op in tape.operations:
+                for w in op.wires.tolist():
+                    if isinstance(w, int):
+                        wires_used.add(w)
+            n_wires = max(wires_used) + 1 if wires_used else 1
+            trace_device = qml.device("default.qubit", wires=n_wires)
+
+            # 3. Build a new circuit that interleaves snapshots between gates.
+            ops = list(tape.operations)
+            labels = ["0: init"] + [
+                f"{i + 1}: {_format_op(op)}" for i, op in enumerate(ops)
+            ]
+
+            def _snapshotted() -> qml.measurements.StateMP:
+                qml.Snapshot(labels[0])
+                for op, label in zip(ops, labels[1:]):
+                    qml.apply(op)
+                    qml.Snapshot(label)
+                return qml.state()
+
+            snap_qnode = qml.QNode(_snapshotted, trace_device)
+            snaps = qml.snapshots(snap_qnode)()
+
+            # 4. Walk through snapshots in insertion order. ``qml.snapshots``
+            #    returns a dict with one entry per Snapshot plus a final
+            #    ``"execution_results"`` key we discard.
+            result: list[tuple[str, np.ndarray]] = []
+            for label in labels:
+                if label in snaps:
+                    result.append((label, np.asarray(snaps[label])))
+            return result
+        except QVMError:
+            raise
+        except Exception as e:
+            raise ExecutionError(
+                f"Failed to trace circuit '{circuit_fn.__name__}': {e}"
+            ) from e
 
     def draw(
         self,
