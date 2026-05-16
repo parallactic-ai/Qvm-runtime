@@ -211,6 +211,100 @@ It runs five SGD steps over a parameterized circuit; the cost drops from `~0.84`
 
 ---
 
+## Qapps — variational algorithms in ten lines
+
+The pattern *parameterized circuit → cost → gradient descent → repeat* is the kernel of every variational quantum algorithm (VQE, QAOA, quantum classifiers). `Qapp` bundles it into a single object so you stop writing the loop by hand.
+
+```python
+from qvm import QuantumRuntime, Qapp
+import pennylane as qml
+
+qvm = QuantumRuntime()
+
+@qvm.circuit
+def cost(params):
+    qml.RX(params[0], wires=0)
+    qml.RY(params[1], wires=0)
+    return qml.expval(qml.PauliZ(0))
+
+app = Qapp(cost, runtime=qvm, learning_rate=0.4)
+result = app.fit(initial_params=[0.5, 0.3], steps=30, tol=1e-6)
+
+print(result.best_cost)     # ~ -1.0
+print(result.steps_taken)   # ~ 22
+print(result.converged)     # True
+```
+
+`fit()` returns an `OptimizationResult` with:
+
+| Attribute | What it is |
+| --- | --- |
+| `history` | `[(step, params, cost), ...]` — full trace including step 0 |
+| `best_params` / `best_cost` | Snapshot at the lowest-cost step seen |
+| `converged` | `True` if cost delta dropped below `tol`, `False` if `steps` ran out |
+| `steps_taken` | How many gradient steps actually ran |
+
+For one-off inspection without re-running `fit`:
+
+```python
+app.evaluate(params)   # cost at a point (analytic, no shot noise)
+app.grad_at(params)    # gradient at a point
+```
+
+A live demo with a cost-trajectory bar chart lives in `examples/vqa_demo.py`.
+
+### Choosing an optimizer
+
+By default `Qapp` uses plain SGD. Two stronger options ship out of the box — instantiate one and pass it to `Qapp(..., optimizer=...)`:
+
+```python
+from qvm import Adam, Momentum, Qapp, SGD
+
+Qapp(cost, runtime=qvm, optimizer=SGD(learning_rate=0.2))
+Qapp(cost, runtime=qvm, optimizer=Momentum(learning_rate=0.1, momentum=0.9))
+Qapp(cost, runtime=qvm, optimizer=Adam(learning_rate=0.1))
+```
+
+| Optimizer | When to reach for it |
+| --- | --- |
+| `SGD` | Predictable, no per-parameter state. Good baseline. |
+| `Momentum` | Smooths gradient noise; helps in long curved valleys. |
+| `Adam` | Adapts per-parameter step size. Fastest convergence on most QML cost surfaces. |
+
+All three are gradient-based and share the same interface (`Optimizer.step(params, grads)` returning new params). Implement your own by subclassing `Optimizer` if you need a custom rule. `examples/optimizers_compared.py` runs the same cost surface through all three side by side.
+
+---
+
+## Command-line interface
+
+Installing the package also installs a `qvm` command. Five subcommands, each useful inside its first five seconds:
+
+```bash
+qvm                # banner + hint at what to try next
+qvm version        # qvm-runtime 0.1.0
+qvm info           # PennyLane version + available backends + Python
+qvm demo bell      # Bell-state walkthrough — entanglement in your terminal
+qvm demo vqa       # optimization loop converging to ⟨Z⟩ = -1
+```
+
+`qvm` with no args shows a quick banner:
+
+```text
+╭──────────────────────────────────────────────────╮
+│  qvm · quantum runtime · v0.1.0                  │
+│                                                  │
+│   |0⟩ ─┤H├──●──── ⟨Z⟩                            │
+│             │                                    │
+│   |0⟩ ──────X──── |ψ⟩ = (|00⟩+|11⟩)/√2           │
+╰──────────────────────────────────────────────────╯
+
+  Try:  qvm info   ·   qvm demo bell   ·   qvm --help
+```
+
+The CLI is built on [Typer](https://typer.tiangolo.com/) — extending it is just `@app.command()` on a new function.
+
+---
+
 ## Inspecting circuits
 
 `qvm.draw(circuit, params=...)` returns an ASCII diagram of any `@qvm.circuit`. Great for tutorials, debug prints, and notebook output.
@@ -275,30 +369,34 @@ All of these chain the original exception via `__cause__`, so the underlying Pen
 
 ## Project status
 
-**Phase 1 — Minimal Viable Runtime.** What works today:
+**Phase 1 — complete.** Minimal viable runtime:
 
 - `run`, `sample`, `state` for the common measurement types
-- `@circuit` and `@hybrid` decorators
+- `@circuit` and `@hybrid` decorators (instance and module-level)
 - Analytic gradients via `grad()` and `make_qnode(analytic=True)`
-- 13-test pytest suite (`pytest tests/ -v`)
+- `Qapp` abstraction with `fit` / `evaluate` / `grad_at` and a full `OptimizationResult`
+- Pluggable optimizers: `SGD`, `Momentum`, `Adam` (write your own by subclassing `Optimizer`)
+- `draw()` for ASCII circuit diagrams
+- `qvm` CLI with `info`, `version`, `demo bell`, `demo vqa`
+- Five runnable examples: basic, gradient, Bell state, VQA demo, optimizers compared
+- 40-test pytest suite covering runtime + Qapp + optimizers + CLI
 
 ### Honest limitations
 
-- **No automatic batching.** One execution per `run()` call. If you want to run a parameter sweep, write a Python loop.
+- **No automatic batching.** One execution per `run()` call. Parameter sweeps need a Python loop.
 - **No GPU or distributed dispatch.** Whatever PennyLane device you pick is what you get.
 - **No shared wire registers.** Each circuit infers wires independently — there's no `Qubit` / `Register` abstraction yet.
 - **No mid-circuit measurement helpers.** Use raw PennyLane primitives inside the circuit for that.
 - **No noise modeling sugar.** Use `default.mixed` or a noise plugin and configure it yourself.
 - **Not production-ready.** Error messages favor clarity over machine-readability; APIs may shift in Phase 2.
 
-### Phase 2 (rough sketch)
+### Phase 2 (sketched, not committed)
 
-- Higher-level **Qapp** abstraction — quantum programs as composable objects.
+- A scipy-minimize bridge — let users plug in any classical optimizer.
 - Built-in batching and parameter sweeps.
+- More CLI subcommands — saved-experiment replay, history, parameter sweeps.
 - Pluggable schedulers for parallel hybrid workflows.
-- Richer educational tooling (circuit visualizers, step traces).
-
-Nothing here is committed yet — feedback welcome.
+- Richer educational tooling — step traces, Bloch-sphere visualizations.
 
 ---
 
@@ -318,13 +416,22 @@ The whole suite runs in under a second on `default.qubit`.
 qvm/
   __init__.py        # public API
   runtime.py         # QuantumRuntime class
+  qapp.py            # Qapp + OptimizationResult
+  optimizers.py      # Optimizer base + SGD / Momentum / Adam
+  cli.py             # `qvm` command-line interface (Typer)
   decorators.py      # module-level hybrid, grad
   exceptions.py      # QVMError hierarchy
 examples/
-  basic_usage.py
-  gradient_example.py
+  basic_usage.py             # smallest hybrid example
+  gradient_example.py        # manual gradient-descent loop
+  bell_state.py              # entanglement walkthrough
+  vqa_demo.py                # the Qapp story in 10 lines
+  optimizers_compared.py     # SGD vs Momentum vs Adam on the same cost
 tests/
   test_runtime.py
+  test_qapp.py
+  test_optimizers.py
+  test_cli.py
 ```
 
 ---

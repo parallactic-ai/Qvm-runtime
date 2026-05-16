@@ -8,10 +8,18 @@ from .exceptions import (
     ParameterError,
     QVMError,
 )
+from .optimizers import SGD, Adam, Momentum, Optimizer
+from .qapp import OptimizationResult, Qapp
 from .runtime import QuantumRuntime
 
 __all__ = [
     "QuantumRuntime",
+    "Qapp",
+    "OptimizationResult",
+    "Optimizer",
+    "SGD",
+    "Momentum",
+    "Adam",
     "QVMError",
     "BackendError",
     "CircuitError",
