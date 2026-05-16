@@ -73,10 +73,10 @@ It's a **Phase 1** project: small, opinionated, and easy to read end-to-end (`qv
 Requires **Python 3.10+** and PennyLane.
 
 ```bash
-pip install -e .
+pip install qvm-runtime
 ```
 
-With dev tooling (`pytest`, `ruff`):
+From source (for development):
 
 ```bash
 pip install -e ".[dev]"
@@ -543,9 +543,13 @@ tests/
 
 ---
 
+## Changelog
+
+See [`CHANGELOG.md`](CHANGELOG.md). Current version is **0.2.0** — "Phase 2 done, Phase 3 begun" — adding `Qapp`, three optimizers, the SciPy bridge, the CLI, batched execution, `trace()`, and Bloch-sphere rendering on top of the Phase 1 runtime.
+
 ## Contributing
 
-This is an early, opinionated project — issues and PRs are welcome. The code is intentionally small so you can read all of it in one sitting; start with `qvm/runtime.py`.
+This is an early, opinionated project — issues and PRs are welcome. The code is intentionally small so you can read all of it in one sitting; start with `qvm/runtime.py`. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for dev setup and the release process.
 
 ---
 

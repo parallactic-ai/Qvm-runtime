@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "qvm-runtime"
-version = "0.1.0"
-description = "Minimal Quantum Runtime (QVM) - Phase 1"
+version = "0.2.0"
+description = "A clean, beginner-friendly Quantum Runtime built on PennyLane"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

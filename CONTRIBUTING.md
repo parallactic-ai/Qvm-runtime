@@ -62,6 +62,53 @@ Useful issues include:
 
 We have a rough sketch in the README (`Qapp` abstraction, batching, schedulers, educational tooling). None of it is committed. If you want to drive one of these, open an issue to discuss the design before writing code.
 
+## Releasing
+
+This repo publishes to PyPI via Trusted Publishing — no API tokens, no secrets in CI. The release workflow at `.github/workflows/release.yml` runs on any `v*` tag push, builds an sdist + wheel, verifies the wheel imports in a clean venv, and uploads.
+
+### One-time setup (already done — keep for reference)
+
+1. Reserve the project name on PyPI:
+   - Log in to https://pypi.org
+   - Go to **Your projects → Publishing → Add a new pending publisher**
+   - Project name: `qvm-runtime`
+   - Owner: `parallactic-ai`
+   - Repository: `Qvm-runtime`
+   - Workflow filename: `release.yml`
+   - Environment: `pypi`
+2. In the GitHub repo settings:
+   - Create a `pypi` Environment (Settings → Environments → New environment).
+   - Optional: add a required reviewer or wait timer for extra safety.
+
+### Cutting a release
+
+```bash
+# 1. Bump version in pyproject.toml and CHANGELOG.md, commit, push.
+git add pyproject.toml CHANGELOG.md
+git commit -m "chore: bump version to 0.X.Y"
+git push
+
+# 2. Tag the commit on main.
+git tag v0.X.Y
+git push origin v0.X.Y
+```
+
+The `release` workflow runs on the tag push, builds, and publishes. Watch with:
+
+```bash
+gh run watch -R parallactic-ai/Qvm-runtime
+```
+
+Within a minute the new version appears on https://pypi.org/p/qvm-runtime/.
+
+### Versioning policy
+
+[Semantic Versioning](https://semver.org/):
+
+- **Patch** (`0.2.0 → 0.2.1`) — bug fixes, doc-only changes.
+- **Minor** (`0.2.0 → 0.3.0`) — new public API, backward compatible.
+- **Major** (`0.2.0 → 1.0.0`) — breaking changes. Pre-`1.0.0`, minor releases are allowed to break things; flag prominently in `CHANGELOG.md`.
+
 ## Code of conduct
 
 Be kind. Assume good intent. Disagree on substance, not on people.
