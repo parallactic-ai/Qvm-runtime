@@ -273,6 +273,19 @@ Qapp(cost, runtime=qvm, optimizer=Adam(learning_rate=0.1))
 
 All three are gradient-based and share the same interface (`Optimizer.step(params, grads)` returning new params). Implement your own by subclassing `Optimizer` if you need a custom rule. `examples/optimizers_compared.py` runs the same cost surface through all three side by side.
 
+### When you want something SciPy has
+
+For methods that aren't gradient descent — L-BFGS-B, COBYLA, Nelder-Mead, trust-region, etc. — use `qvm.minimize`. It hands the problem to `scipy.optimize.minimize` and hands back the same `OptimizationResult`:
+
+```python
+from qvm import minimize
+
+result = minimize(cost, x0=[0.5, 0.3], runtime=qvm, method="L-BFGS-B")
+print(result.best_cost, result.converged)
+```
+
+Gradient-based methods (`L-BFGS-B`, `CG`, `BFGS`, `Newton-CG`) receive the analytic Jacobian automatically. Gradient-free methods (`Nelder-Mead`, `COBYLA`, `Powell`) ignore it harmlessly. Pass any other SciPy option via `options={"maxiter": 100, ...}`.
+
 ---
 
 ## Command-line interface
@@ -341,6 +354,24 @@ qnode = qvm.make_qnode(my_circuit, analytic=True)
 ```python
 qvm.set_backend("lightning.qubit")   # fast C++ simulator
 qvm.available_backends()             # ['default.qubit', 'lightning.qubit', ...]
+```
+
+### Supported hardware (via PennyLane plugins)
+
+Anything PennyLane recognizes as a device string works out of the box — `qvm-runtime` is hardware-agnostic. Install the relevant plugin and pass its device string to `QuantumRuntime(backend=...)`:
+
+| Plugin | Devices | Install |
+| --- | --- | --- |
+| Built-in (always available) | `default.qubit`, `default.mixed`, `lightning.qubit` | — |
+| [pennylane-qiskit](https://github.com/PennyLaneAI/pennylane-qiskit) | IBM Quantum hardware, Qiskit Aer simulators | `pip install pennylane-qiskit` |
+| [pennylane-cirq](https://github.com/PennyLaneAI/pennylane-cirq) | Google Cirq simulators | `pip install pennylane-cirq` |
+| [pennylane-rigetti](https://github.com/PennyLaneAI/pennylane-rigetti) | Rigetti Forest QPUs, QVM, wavefunction simulator | `pip install pennylane-rigetti` |
+| [amazon-braket-pennylane](https://github.com/amazon-braket/amazon-braket-pennylane-plugin-python) | IonQ, Rigetti, IQM, AWS simulators | `pip install amazon-braket-pennylane-plugin` |
+
+Example with Qiskit Aer:
+
+```python
+qvm = QuantumRuntime(backend="qiskit.aer")   # after pip install pennylane-qiskit
 ```
 
 ### Custom diff method

@@ -46,13 +46,20 @@ class SGD(Optimizer):
     """Plain stochastic gradient descent: ``θ ← θ − lr · ∇θ``."""
 
     def __init__(self, learning_rate: float = 0.1) -> None:
+        """Configure SGD with a fixed step size.
+
+        Args:
+            learning_rate: Multiplier applied to the gradient each step.
+        """
         self._lr = learning_rate
 
     @property
     def learning_rate(self) -> float:
+        """Current step size."""
         return self._lr
 
     def step(self, params: np.ndarray, grads: np.ndarray) -> np.ndarray:
+        """Return ``params - learning_rate * grads``."""
         return params - self._lr * grads
 
 
@@ -64,17 +71,26 @@ class Momentum(Optimizer):
     """
 
     def __init__(self, learning_rate: float = 0.1, momentum: float = 0.9) -> None:
+        """Configure Momentum.
+
+        Args:
+            learning_rate: Multiplier on the gradient each step.
+            momentum: Fraction of the prior velocity carried forward (``0`` is
+                plain SGD, ``0.9`` is the conventional default).
+        """
         self._lr = learning_rate
         self._momentum = momentum
         self._velocity: Optional[np.ndarray] = None
 
     def step(self, params: np.ndarray, grads: np.ndarray) -> np.ndarray:
+        """Update the velocity buffer and return the new parameters."""
         if self._velocity is None:
             self._velocity = np.zeros_like(np.asarray(params))
         self._velocity = self._momentum * self._velocity - self._lr * grads
         return params + self._velocity
 
     def reset(self) -> None:
+        """Forget the accumulated velocity."""
         self._velocity = None
 
 
@@ -93,6 +109,14 @@ class Adam(Optimizer):
         beta2: float = 0.999,
         eps: float = 1e-8,
     ) -> None:
+        """Configure Adam.
+
+        Args:
+            learning_rate: Multiplier applied to bias-corrected moments.
+            beta1: Exponential decay rate for the first-moment estimate.
+            beta2: Exponential decay rate for the second-moment estimate.
+            eps: Small constant added to the denominator for numerical stability.
+        """
         self._lr = learning_rate
         self._beta1 = beta1
         self._beta2 = beta2
@@ -102,6 +126,7 @@ class Adam(Optimizer):
         self._t: int = 0
 
     def step(self, params: np.ndarray, grads: np.ndarray) -> np.ndarray:
+        """Update first/second moments with bias correction and return new params."""
         if self._m is None:
             self._m = np.zeros_like(np.asarray(params))
             self._v = np.zeros_like(np.asarray(params))
@@ -113,6 +138,7 @@ class Adam(Optimizer):
         return params - self._lr * m_hat / (np.sqrt(v_hat) + self._eps)
 
     def reset(self) -> None:
+        """Forget accumulated moments and reset the step counter."""
         self._m = None
         self._v = None
         self._t = 0

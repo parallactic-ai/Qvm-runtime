@@ -21,7 +21,7 @@ from typing import Callable, List, Optional, Sequence, Tuple, Union
 import numpy as np
 from pennylane import numpy as pnp
 
-from .exceptions import CircuitError, ExecutionError
+from .exceptions import CircuitError, ExecutionError, QVMError
 from .optimizers import SGD, Optimizer
 from .runtime import QuantumRuntime
 
@@ -118,6 +118,8 @@ class Qapp:
         try:
             arr = pnp.array(np.asarray(params, dtype=float), requires_grad=True)
             return float(self._eval_fn(arr))
+        except QVMError:
+            raise
         except Exception as e:
             raise ExecutionError(f"Cost evaluation failed: {e}") from e
 
@@ -126,6 +128,8 @@ class Qapp:
         try:
             arr = pnp.array(np.asarray(params, dtype=float), requires_grad=True)
             return np.asarray(self._grad_fn(arr))
+        except QVMError:
+            raise
         except Exception as e:
             raise ExecutionError(f"Gradient evaluation failed: {e}") from e
 
@@ -159,6 +163,8 @@ class Qapp:
         params = pnp.array(np.asarray(initial_params, dtype=float), requires_grad=True)
         try:
             initial_cost = float(self._eval_fn(params))
+        except QVMError:
+            raise
         except Exception as e:
             raise ExecutionError(f"Initial cost evaluation failed: {e}") from e
 
@@ -181,6 +187,8 @@ class Qapp:
                     requires_grad=True,
                 )
                 cost = float(self._eval_fn(params))
+            except QVMError:
+                raise
             except Exception as e:
                 raise ExecutionError(
                     f"Optimization failed at step {step}: {e}"

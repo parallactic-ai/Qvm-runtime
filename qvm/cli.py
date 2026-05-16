@@ -1,12 +1,13 @@
 """Command-line interface for qvm-runtime.
 
-Five commands, each useful within its first five seconds:
+Four commands, each useful within its first five seconds:
 
   - ``qvm version``       Print the installed version.
   - ``qvm info``          Show PennyLane version, available backends, Python.
   - ``qvm demo bell``     Walk through Bell-state entanglement.
   - ``qvm demo vqa``      Run a small variational optimization to ⟨Z⟩ = -1.
 
+Running ``qvm`` with no arguments prints a banner and exits ``0``.
 Exit codes are conventional: ``0`` for success, non-zero for any error.
 """
 
