@@ -115,6 +115,41 @@ def test_hybrid_wraps_exceptions_in_execution_error(qvm: QuantumRuntime) -> None
         bad()
 
 
+# ---------- draw ----------
+
+def test_draw_renders_circuit_structure(qvm: QuantumRuntime) -> None:
+    @qvm.circuit
+    def bell() -> qml.measurements.StateMP:
+        qml.Hadamard(wires=0)
+        qml.CNOT(wires=[0, 1])
+        return qml.state()
+
+    diagram = qvm.draw(bell)
+    assert isinstance(diagram, str)
+    # The Hadamard and the CNOT control/target should appear in the diagram.
+    assert "H" in diagram
+    assert "0:" in diagram and "1:" in diagram
+
+
+def test_draw_renders_param_values(qvm: QuantumRuntime) -> None:
+    @qvm.circuit
+    def parameterized(params: np.ndarray) -> qml.measurements.ExpectationMP:
+        qml.RX(params[0], wires=0)
+        return qml.expval(qml.PauliZ(0))
+
+    diagram = qvm.draw(parameterized, params=[0.5])
+    assert "RX" in diagram
+    assert "0.50" in diagram  # PennyLane formats floats to 2 decimal places
+
+
+def test_draw_rejects_undecorated_function(qvm: QuantumRuntime) -> None:
+    def bare() -> qml.measurements.ExpectationMP:
+        return qml.expval(qml.PauliZ(0))
+
+    with pytest.raises(CircuitError):
+        qvm.draw(bare)
+
+
 # ---------- backend ----------
 
 def test_invalid_backend_raises_backend_error() -> None:

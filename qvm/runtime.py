@@ -224,6 +224,36 @@ class QuantumRuntime:
             ) from e
 
     # =====================
+    # Inspection
+    # =====================
+
+    def draw(
+        self,
+        circuit_fn: Callable,
+        params: Optional[ParamLike] = None,
+    ) -> str:
+        """Return an ASCII diagram of a ``@qvm.circuit``.
+
+        A thin wrapper over :func:`pennylane.draw`. Pass ``params`` if the
+        circuit takes them; omit otherwise. The diagram is structural —
+        shot count and device are irrelevant.
+        """
+        if not getattr(circuit_fn, "_is_qvm_circuit", False):
+            raise CircuitError("Function must be decorated with @qvm.circuit")
+        try:
+            qnode = self._create_qnode(circuit_fn, shots=None)
+            drawer = qml.draw(qnode)
+            if params is None:
+                return drawer()
+            return drawer(np.asarray(params, dtype=float))
+        except QVMError:
+            raise
+        except Exception as e:
+            raise CircuitError(
+                f"Failed to draw circuit '{circuit_fn.__name__}': {e}"
+            ) from e
+
+    # =====================
     # Differentiation
     # =====================
 

@@ -211,6 +211,26 @@ It runs five SGD steps over a parameterized circuit; the cost drops from `~0.84`
 
 ---
 
+## Inspecting circuits
+
+`qvm.draw(circuit, params=...)` returns an ASCII diagram of any `@qvm.circuit`. Great for tutorials, debug prints, and notebook output.
+
+```python
+@qvm.circuit
+def bell():
+    qml.Hadamard(wires=0)
+    qml.CNOT(wires=[0, 1])
+    return qml.state()
+
+print(qvm.draw(bell))
+# 0: ──H─╭●─┤  State
+# 1: ────╰X─┤  State
+```
+
+A complete walkthrough — diagram, state vector, samples, marginals — lives in `examples/bell_state.py`. It's the smallest example that shows real entanglement.
+
+---
+
 ## Advanced
 
 ### Raw QNode access
